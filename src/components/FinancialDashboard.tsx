@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   TrendingUp,
@@ -17,7 +17,7 @@ import {
   DollarSign,
   CreditCard,
 } from 'lucide-react';
-import Chart from 'chart.js/auto';
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, Pie, Tooltip, Legend } from 'recharts';
 import { SummaryCard } from './SummaryCard';
 import { GoalCard } from './GoalCard';
 import { Button } from '@/components/ui/button';
@@ -60,8 +60,6 @@ export const FinancialDashboard = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [newTransaction, setNewTransaction] = useState({ description: '', amount: '' });
   const [newGoal, setNewGoal] = useState({ name: '', target: '', deadline: '' });
-  const chartRef = useRef<HTMLCanvasElement>(null);
-  const chartInstance = useRef<Chart | null>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -124,56 +122,27 @@ export const FinancialDashboard = () => {
     setNewGoal({ name: '', target: '', deadline: '' });
   };
 
-  useEffect(() => {
-    if (!chartRef.current) return;
-    
-    // Destroy existing chart
-    if (chartInstance.current) {
-      chartInstance.current.destroy();
-    }
+  const chartColors = [
+    'hsl(var(--primary))',
+    'hsl(var(--secondary))', 
+    'hsl(var(--accent))',
+    'hsl(var(--destructive))',
+    'hsl(var(--muted))'
+  ];
 
-    const ctx = chartRef.current.getContext('2d');
-    if (!ctx) return;
+  const spendingData = budgets.map((budget, index) => ({
+    name: budget.category,
+    value: budget.spent,
+    color: chartColors[index % chartColors.length]
+  })).filter(item => item.value > 0);
 
-    const data = {
-      labels: budgets.map(b => b.category),
-      datasets: [{
-        label: 'Budget Spent',
-        data: budgets.map(b => b.spent),
-        backgroundColor: [
-          'hsl(262 83% 58%)',
-          'hsl(142 76% 36%)', 
-          'hsl(45 93% 47%)',
-          'hsl(0 84% 60%)',
-          'hsl(320 91% 65%)'
-        ],
-        borderWidth: 0,
-      }]
-    };
-
-    chartInstance.current = new Chart(ctx, {
-      type: 'pie',
-      data,
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              padding: 20,
-              usePointStyle: true,
-            }
-          }
-        }
-      }
-    });
-
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-    };
-  }, [budgets, transactions]);
+  const budgetData = budgets.map((budget, index) => ({
+    name: budget.category,
+    remaining: Math.max(budget.amount - budget.spent, 0),
+    spent: budget.spent,
+    total: budget.amount,
+    color: chartColors[index % chartColors.length]
+  }));
 
   const TabButton = ({ tab, label, isActive, onClick }: {
     tab: string;
@@ -269,10 +238,59 @@ export const FinancialDashboard = () => {
             </div>
 
             {/* Charts */}
-            <div className="bg-card rounded-xl shadow-soft p-6 border border-border">
-              <h3 className="text-xl font-semibold mb-4 text-card-foreground">Spending by Category</h3>
-              <div className="w-full h-64 flex items-center justify-center">
-                <canvas ref={chartRef} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-card rounded-xl shadow-soft p-6 border border-border">
+                <h3 className="text-xl font-semibold mb-4 text-card-foreground">Spending by Category</h3>
+                <div className="w-full h-64">
+                  {spendingData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={spendingData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, value }) => `${name}: $${value.toFixed(2)}`}
+                        >
+                          {spendingData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Spent']} />
+                        <Legend />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No spending data to display
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-card rounded-xl shadow-soft p-6 border border-border">
+                <h3 className="text-xl font-semibold mb-4 text-card-foreground">Budget Overview</h3>
+                <div className="w-full h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={budgetData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="total"
+                        label={({ name, total }) => `${name}: $${total}`}
+                      >
+                        {budgetData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [`$${Number(value)}`, 'Budget']} />
+                      <Legend />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>
